@@ -15,6 +15,10 @@
   --font-serif-body: "Source Serif 4", serif;
 }
 
+html {
+  background-color: #141210;
+}
+
 body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
