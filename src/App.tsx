@@ -52,7 +52,7 @@ export default function App() {
     <main className="flex min-h-screen flex-col items-center justify-center bg-bg px-6">
       <div className="flex flex-col items-center gap-6">
         {/* Coming Soon label */}
-        <p className="font-mono text-[9px] uppercase tracking-[4px] text-muted">
+        <p className="font-mono text-[12px] uppercase tracking-[4px] text-muted">
           Coming soon
         </p>
 
@@ -87,7 +87,7 @@ export default function App() {
             <button
               type="submit"
               disabled={status === "loading"}
-              className="h-[49px] w-[168px] border border-cream bg-cream font-mono text-[9px] uppercase tracking-[2px] text-bg transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-60"
+              className="h-[49px] w-[168px] border border-cream bg-cream font-mono text-[11px] uppercase tracking-[2px] text-bg transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-60"
             >
               {status === "loading" ? "Submitting..." : "Get early access"}
             </button>
@@ -105,7 +105,7 @@ export default function App() {
             href="https://x.com/hyperactdoting"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono text-[8px] uppercase tracking-[2px] text-muted transition-colors hover:text-tagline"
+            className="font-mono text-[11px] uppercase tracking-[2px] text-muted transition-colors hover:text-tagline"
           >
             Twitter / X
           </a>
@@ -113,13 +113,13 @@ export default function App() {
             href="https://www.linkedin.com/company/113013698/"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono text-[8px] uppercase tracking-[2px] text-muted transition-colors hover:text-tagline"
+            className="font-mono text-[11px] uppercase tracking-[2px] text-muted transition-colors hover:text-tagline"
           >
             LinkedIn
           </a>
           <a
             href="/feed.xml"
-            className="font-mono text-[8px] uppercase tracking-[2px] text-muted transition-colors hover:text-tagline"
+            className="font-mono text-[11px] uppercase tracking-[2px] text-muted transition-colors hover:text-tagline"
           >
             RSS
           </a>
