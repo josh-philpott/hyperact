@@ -26,3 +26,8 @@ dist-ssr
 # Cloudflare
 .dev.vars
 .wrangler
+
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
