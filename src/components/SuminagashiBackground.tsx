@@ -9,8 +9,8 @@ const PARTICLE_COUNT = 12000;
 const POINT_SIZE = 2.0;
 const SPRING = 0.015;       // spring-back strength
 const DAMPING = 0.92;       // velocity damping
-const MOUSE_RADIUS = 120;   // repulsion radius in px
-const MOUSE_FORCE = 8;      // repulsion strength
+const MOUSE_RADIUS = 50;    // repulsion radius in px
+const MOUSE_FORCE = 5;      // repulsion strength
 const WAVE_SPEED = 400;     // click wave expansion px/s
 const WAVE_FORCE = 12;      // click wave push strength
 const WAVE_WIDTH = 60;      // wave ring thickness in px
@@ -61,7 +61,7 @@ export default function SuminagashiBackground() {
         posY[i] = homeY[i];
         velX[i] = 0;
         velY[i] = 0;
-        alpha[i] = 0.15 + Math.random() * 0.35;
+        alpha[i] = 0.3 + Math.random() * 0.5;
       }
     }
     initParticles();
@@ -84,11 +84,21 @@ export default function SuminagashiBackground() {
     // --- Mouse state ---
     let mouseX = -9999;
     let mouseY = -9999;
+    let mouseVX = 0;
+    let mouseVY = 0;
+    let prevMouseX = -9999;
+    let prevMouseY = -9999;
 
     function onMouseMove(e: MouseEvent) {
       const rect = canvas.getBoundingClientRect();
+      prevMouseX = mouseX;
+      prevMouseY = mouseY;
       mouseX = (e.clientX - rect.left) * dpr;
       mouseY = (e.clientY - rect.top) * dpr;
+      if (prevMouseX > -9000) {
+        mouseVX = mouseX - prevMouseX;
+        mouseVY = mouseY - prevMouseY;
+      }
     }
 
     function onMouseLeave() {
@@ -172,6 +182,16 @@ export default function SuminagashiBackground() {
           velY[i] += (dy / dist) * force;
         }
 
+        // Mouse current — drag nearby particles in direction of mouse movement
+        const currentRad = mouseRad * 4;
+        const currentRadSq = currentRad * currentRad;
+        if (distSq < currentRadSq && distSq > 1) {
+          const dist = Math.sqrt(distSq);
+          const influence = (1.0 - dist / currentRad) * 0.4;
+          velX[i] += mouseVX * influence;
+          velY[i] += mouseVY * influence;
+        }
+
         // Click wave push
         for (let w = 0; w < waves.length; w++) {
           const wave = waves[w];
@@ -206,7 +226,7 @@ export default function SuminagashiBackground() {
       gl.useProgram(program);
       gl.uniform2f(uResolution, canvas.width, canvas.height);
       gl.uniform1f(uPointSize, POINT_SIZE * dpr);
-      gl.uniform3f(uColor, 55 / 255, 50 / 255, 42 / 255);
+      gl.uniform3f(uColor, 80 / 255, 72 / 255, 58 / 255);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
       gl.bufferData(gl.ARRAY_BUFFER, posData, gl.DYNAMIC_DRAW);
