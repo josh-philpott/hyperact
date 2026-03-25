@@ -1,15 +1,19 @@
 import { useEffect, useRef } from "react";
 import {
-  vertexShader,
-  displacementShader,
-  stampShader,
-  advectShader,
-  outputShader,
+  particleVertexShader,
+  particleFragmentShader,
   createProgram,
-  createFBO,
-  createQuadBuffer,
 } from "../shaders/suminagashi.ts";
 
+const PARTICLE_COUNT = 12000;
+const POINT_SIZE = 2.0;
+const SPRING = 0.015;       // spring-back strength
+const DAMPING = 0.92;       // velocity damping
+const MOUSE_RADIUS = 120;   // repulsion radius in px
+const MOUSE_FORCE = 8;      // repulsion strength
+const WAVE_SPEED = 400;     // click wave expansion px/s
+const WAVE_FORCE = 12;      // click wave push strength
+const WAVE_WIDTH = 60;      // wave ring thickness in px
 export default function SuminagashiBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -18,7 +22,7 @@ export default function SuminagashiBackground() {
     if (!canvasEl) return;
 
     const glCtx = canvasEl.getContext("webgl", {
-      alpha: false,
+      alpha: true,
       antialias: false,
       preserveDrawingBuffer: false,
     });
@@ -28,208 +32,206 @@ export default function SuminagashiBackground() {
       return;
     }
 
-    // Non-null references for use in closures (TS doesn't narrow across closures)
     const canvas = canvasEl;
     const gl = glCtx;
 
-    // --- Programs ---
-    const displaceProg = createProgram(gl, vertexShader, displacementShader);
-    const stampProg = createProgram(gl, vertexShader, stampShader);
-    const advectProg = createProgram(gl, vertexShader, advectShader);
-    const outputProg = createProgram(gl, vertexShader, outputShader);
-
-    // --- Quad buffer ---
-    const quadBuffer = createQuadBuffer(gl);
-
-    // --- State ---
-    let scale = 0.5;
-    let simW = 0;
-    let simH = 0;
-    let fboA: { texture: WebGLTexture; fbo: WebGLFramebuffer };
-    let fboB: { texture: WebGLTexture; fbo: WebGLFramebuffer };
-    let lastTime = 0;
-    let slowFrames = 0;
-    let rafId = 0;
-    // --- Helpers ---
-    function drawQuad(program: WebGLProgram) {
-      gl.useProgram(program);
-      const loc = gl.getAttribLocation(program, "a_position");
-      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
-      gl.enableVertexAttribArray(loc);
-      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-    }
-
-    // --- Cached uniform locations ---
-    function getLocs(program: WebGLProgram, names: string[]) {
-      const locs: Record<string, WebGLUniformLocation | null> = {};
-      for (const name of names) {
-        locs[name] = gl.getUniformLocation(program, name);
-      }
-      return locs;
-    }
-
-    const displaceLocs = getLocs(displaceProg, ['u_ink', 'u_clickPos', 'u_radius', 'u_strength', 'u_active']);
-    const stampLocs = getLocs(stampProg, ['u_ink', 'u_clickPos', 'u_velocity', 'u_speed', 'u_ringWidth', 'u_active']);
-    const advectLocs = getLocs(advectProg, ['u_ink', 'u_time', 'u_dt', 'u_driftSpeed']);
-    const outputLocs = getLocs(outputProg, ['u_ink']);
-
-    // --- FBO management ---
-    function deleteFBOs() {
-      if (fboA) {
-        gl.deleteTexture(fboA.texture);
-        gl.deleteFramebuffer(fboA.fbo);
-      }
-      if (fboB) {
-        gl.deleteTexture(fboB.texture);
-        gl.deleteFramebuffer(fboB.fbo);
-      }
-    }
-
-    function initFBOs() {
-      deleteFBOs();
-      simW = Math.floor(canvas.width * scale);
-      simH = Math.floor(canvas.height * scale);
-      fboA = createFBO(gl, simW, simH);
-      fboB = createFBO(gl, simW, simH);
-    }
-
     // --- Resize ---
+    const dpr = Math.min(devicePixelRatio, 2);
     function resize() {
-      const dpr = Math.min(devicePixelRatio, 2);
       canvas.width = Math.floor(canvas.clientWidth * dpr);
       canvas.height = Math.floor(canvas.clientHeight * dpr);
-      initFBOs();
+      gl.viewport(0, 0, canvas.width, canvas.height);
     }
-
     resize();
 
-    const ro = new ResizeObserver(() => resize());
-    ro.observe(canvas);
+    // --- Particles ---
+    const homeX = new Float32Array(PARTICLE_COUNT);
+    const homeY = new Float32Array(PARTICLE_COUNT);
+    const posX = new Float32Array(PARTICLE_COUNT);
+    const posY = new Float32Array(PARTICLE_COUNT);
+    const velX = new Float32Array(PARTICLE_COUNT);
+    const velY = new Float32Array(PARTICLE_COUNT);
+    const alpha = new Float32Array(PARTICLE_COUNT);
 
-    // --- Mouse tracking (comet trail behind cursor) ---
-    let mouseActive = false;
-    let mousePos = { x: 0, y: 0 };
-    let prevMousePos = { x: 0, y: 0 };
-    let mouseVel = { x: 0, y: 0 };
-    let lastMoveTime = 0;
+    function initParticles() {
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        homeX[i] = Math.random() * canvas.width;
+        homeY[i] = Math.random() * canvas.height;
+        posX[i] = homeX[i];
+        posY[i] = homeY[i];
+        velX[i] = 0;
+        velY[i] = 0;
+        alpha[i] = 0.15 + Math.random() * 0.35;
+      }
+    }
+    initParticles();
+
+    // --- GL setup ---
+    const program = createProgram(gl, particleVertexShader, particleFragmentShader);
+    const aPosition = gl.getAttribLocation(program, "a_position");
+    const aAlpha = gl.getAttribLocation(program, "a_alpha");
+    const uResolution = gl.getUniformLocation(program, "u_resolution");
+    const uPointSize = gl.getUniformLocation(program, "u_pointSize");
+    const uColor = gl.getUniformLocation(program, "u_color");
+
+    const posBuf = gl.createBuffer();
+    const alphaBuf = gl.createBuffer();
+    const posData = new Float32Array(PARTICLE_COUNT * 2);
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    // --- Mouse state ---
+    let mouseX = -9999;
+    let mouseY = -9999;
 
     function onMouseMove(e: MouseEvent) {
       const rect = canvas.getBoundingClientRect();
-      prevMousePos = { ...mousePos };
-      mousePos = {
-        x: (e.clientX - rect.left) / rect.width,
-        y: 1.0 - (e.clientY - rect.top) / rect.height,
-      };
-      mouseVel = {
-        x: mousePos.x - prevMousePos.x,
-        y: mousePos.y - prevMousePos.y,
-      };
-      mouseActive = true;
-      lastMoveTime = performance.now();
+      mouseX = (e.clientX - rect.left) * dpr;
+      mouseY = (e.clientY - rect.top) * dpr;
     }
 
     function onMouseLeave() {
-      mouseActive = false;
+      mouseX = -9999;
+      mouseY = -9999;
     }
 
     window.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseleave", onMouseLeave);
 
+    // --- Click waves ---
+    const waves: Array<{ x: number; y: number; radius: number }> = [];
+
+    function onClick(e: MouseEvent) {
+      const rect = canvas.getBoundingClientRect();
+      waves.push({
+        x: (e.clientX - rect.left) * dpr,
+        y: (e.clientY - rect.top) * dpr,
+        radius: 0,
+      });
+    }
+
+    window.addEventListener("click", onClick);
+
+    // --- Simple noise for ambient drift ---
+    function noise(x: number, y: number, t: number): [number, number] {
+      const ax = Math.sin(x * 0.003 + t * 0.4) * Math.cos(y * 0.005 + t * 0.3);
+      const ay = Math.cos(x * 0.005 + t * 0.3) * Math.sin(y * 0.003 + t * 0.5);
+      return [ax, ay];
+    }
+
+    // --- Resize observer ---
+    const ro = new ResizeObserver(() => {
+      resize();
+      initParticles();
+    });
+    ro.observe(canvas);
+
     // --- Render loop ---
+    let rafId = 0;
+    let lastTime = 0;
+
     function frame(time: number) {
       rafId = requestAnimationFrame(frame);
 
       if (lastTime === 0) { lastTime = time; }
       const dt = Math.min((time - lastTime) / 1000, 0.05);
       lastTime = time;
+      const t = time / 1000;
 
-      // Performance monitoring
-      if (dt > 0.018) {
-        slowFrames++;
-        if (slowFrames > 30 && scale > 0.25) {
-          scale = 0.25;
-          initFBOs();
-        }
-      } else {
-        slowFrames = Math.max(0, slowFrames - 1);
-      }
+      const mouseRad = MOUSE_RADIUS * dpr;
+      const mouseRadSq = mouseRad * mouseRad;
 
-      // Only pour ink while mouse is actively moving
-      if (mouseActive) {
-        const stillMs = performance.now() - lastMoveTime;
-        const speed = Math.sqrt(mouseVel.x * mouseVel.x + mouseVel.y * mouseVel.y);
-        const moving = stillMs < 80 && speed > 0.001;
-
-        if (moving) {
-          // Displacement pass
-          gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
-          gl.viewport(0, 0, simW, simH);
-          gl.useProgram(displaceProg);
-          gl.activeTexture(gl.TEXTURE0);
-          gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
-          gl.uniform1i(displaceLocs.u_ink, 0);
-          gl.uniform2f(displaceLocs.u_clickPos, mousePos.x, mousePos.y);
-          gl.uniform1f(displaceLocs.u_radius, 0.1);
-          gl.uniform1f(displaceLocs.u_strength, 0.005);
-          gl.uniform1f(displaceLocs.u_active, 1.0);
-          drawQuad(displaceProg);
-          [fboA, fboB] = [fboB, fboA];
-
-          // Stamp pass
-          gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
-          gl.viewport(0, 0, simW, simH);
-          gl.useProgram(stampProg);
-          gl.activeTexture(gl.TEXTURE0);
-          gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
-          gl.uniform1i(stampLocs.u_ink, 0);
-          gl.uniform2f(stampLocs.u_clickPos, mousePos.x, mousePos.y);
-          gl.uniform2f(stampLocs.u_velocity, mouseVel.x, mouseVel.y);
-          gl.uniform1f(stampLocs.u_speed, speed);
-          gl.uniform1f(stampLocs.u_ringWidth, 0.06);
-          gl.uniform1f(stampLocs.u_active, 1.0);
-          drawQuad(stampProg);
-          [fboA, fboB] = [fboB, fboA];
+      // Update waves
+      for (let w = waves.length - 1; w >= 0; w--) {
+        waves[w].radius += WAVE_SPEED * dpr * dt;
+        if (waves[w].radius > Math.max(canvas.width, canvas.height) * 1.5) {
+          waves.splice(w, 1);
         }
       }
 
-      // Advection pass (every frame)
-      gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
-      gl.viewport(0, 0, simW, simH);
-      gl.useProgram(advectProg);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
-      gl.uniform1i(advectLocs.u_ink, 0);
-      gl.uniform1f(advectLocs.u_time, time / 1000);
-      gl.uniform1f(advectLocs.u_dt, dt);
-      gl.uniform1f(advectLocs.u_driftSpeed, 0.08);
-      drawQuad(advectProg);
-      [fboA, fboB] = [fboB, fboA];
+      // Update particles
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        // Ambient drift
+        const [nx, ny] = noise(homeX[i], homeY[i], t);
+        const targetX = homeX[i] + nx * 30;
+        const targetY = homeY[i] + ny * 30;
 
-      // Output pass (to screen)
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.useProgram(outputProg);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
-      gl.uniform1i(outputLocs.u_ink, 0);
-      drawQuad(outputProg);
+        // Spring back toward drifting home
+        velX[i] += (targetX - posX[i]) * SPRING;
+        velY[i] += (targetY - posY[i]) * SPRING;
+
+        // Mouse repulsion
+        const dx = posX[i] - mouseX;
+        const dy = posY[i] - mouseY;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < mouseRadSq && distSq > 1) {
+          const dist = Math.sqrt(distSq);
+          const force = (1.0 - dist / mouseRad) * MOUSE_FORCE;
+          velX[i] += (dx / dist) * force;
+          velY[i] += (dy / dist) * force;
+        }
+
+        // Click wave push
+        for (let w = 0; w < waves.length; w++) {
+          const wave = waves[w];
+          const wdx = posX[i] - wave.x;
+          const wdy = posY[i] - wave.y;
+          const wDist = Math.sqrt(wdx * wdx + wdy * wdy);
+          const ringDist = Math.abs(wDist - wave.radius);
+          const waveW = WAVE_WIDTH * dpr;
+          if (ringDist < waveW && wDist > 1) {
+            const strength = (1.0 - ringDist / waveW) * WAVE_FORCE;
+            const maxR = Math.max(canvas.width, canvas.height) * 0.8;
+            const ageFade = Math.max(0, 1.0 - wave.radius / maxR);
+            velX[i] += (wdx / wDist) * strength * ageFade;
+            velY[i] += (wdy / wDist) * strength * ageFade;
+          }
+        }
+
+        // Integrate
+        velX[i] *= DAMPING;
+        velY[i] *= DAMPING;
+        posX[i] += velX[i];
+        posY[i] += velY[i];
+
+        posData[i * 2] = posX[i];
+        posData[i * 2 + 1] = posY[i];
+      }
+
+      // --- Render ---
+      gl.clearColor(20 / 255, 18 / 255, 16 / 255, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+
+      gl.useProgram(program);
+      gl.uniform2f(uResolution, canvas.width, canvas.height);
+      gl.uniform1f(uPointSize, POINT_SIZE * dpr);
+      gl.uniform3f(uColor, 55 / 255, 50 / 255, 42 / 255);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, posData, gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(aPosition);
+      gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 0, 0);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, alphaBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, alpha, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(aAlpha);
+      gl.vertexAttribPointer(aAlpha, 1, gl.FLOAT, false, 0, 0);
+
+      gl.drawArrays(gl.POINTS, 0, PARTICLE_COUNT);
     }
 
     rafId = requestAnimationFrame(frame);
 
-    // --- Cleanup ---
     return () => {
       cancelAnimationFrame(rafId);
       window.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseleave", onMouseLeave);
+      window.removeEventListener("click", onClick);
       ro.disconnect();
-      gl.deleteProgram(displaceProg);
-      gl.deleteProgram(stampProg);
-      gl.deleteProgram(advectProg);
-      gl.deleteProgram(outputProg);
-      gl.deleteBuffer(quadBuffer);
-      deleteFBOs();
+      gl.deleteProgram(program);
+      gl.deleteBuffer(posBuf);
+      gl.deleteBuffer(alphaBuf);
     };
   }, []);
 
