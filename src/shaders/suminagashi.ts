@@ -185,3 +185,87 @@ void main() {
   gl_FragColor = vec4(color, 1.0);
 }
 `;
+
+// ---------------------------------------------------------------------------
+// WebGL helper utilities
+// ---------------------------------------------------------------------------
+
+export function compileShader(
+  gl: WebGLRenderingContext,
+  type: number,
+  source: string,
+): WebGLShader {
+  const shader = gl.createShader(type);
+  if (!shader) throw new Error("Failed to create shader");
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const info = gl.getShaderInfoLog(shader);
+    gl.deleteShader(shader);
+    throw new Error(`Shader compilation failed: ${info}`);
+  }
+  return shader;
+}
+
+export function createProgram(
+  gl: WebGLRenderingContext,
+  vertSrc: string,
+  fragSrc: string,
+): WebGLProgram {
+  const vert = compileShader(gl, gl.VERTEX_SHADER, vertSrc);
+  const frag = compileShader(gl, gl.FRAGMENT_SHADER, fragSrc);
+  const program = gl.createProgram();
+  if (!program) throw new Error("Failed to create program");
+  gl.attachShader(program, vert);
+  gl.attachShader(program, frag);
+  gl.linkProgram(program);
+  gl.deleteShader(vert);
+  gl.deleteShader(frag);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const info = gl.getProgramInfoLog(program);
+    gl.deleteProgram(program);
+    throw new Error(`Program linking failed: ${info}`);
+  }
+  return program;
+}
+
+export function createFBO(
+  gl: WebGLRenderingContext,
+  width: number,
+  height: number,
+): { texture: WebGLTexture; fbo: WebGLFramebuffer } {
+  const texture = gl.createTexture();
+  if (!texture) throw new Error("Failed to create texture");
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  const fbo = gl.createFramebuffer();
+  if (!fbo) throw new Error("Failed to create framebuffer");
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  return { texture, fbo };
+}
+
+export function createQuadBuffer(gl: WebGLRenderingContext): WebGLBuffer {
+  const buffer = gl.createBuffer();
+  if (!buffer) throw new Error("Failed to create buffer");
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  // Two triangles covering [-1, 1] clip space
+  // prettier-ignore
+  const vertices = new Float32Array([
+    -1, -1,
+     1, -1,
+    -1,  1,
+    -1,  1,
+     1, -1,
+     1,  1,
+  ]);
+  gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+  return buffer;
+}
