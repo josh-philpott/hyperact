@@ -7,7 +7,7 @@ import {
 
 const PARTICLE_COUNT = 12000;
 const POINT_SIZE = 2.0;
-const DAMPING = 0.92;       // velocity damping
+const DAMPING = 0.985;       // velocity damping
 const MOUSE_RADIUS = 25;    // repulsion radius in px
 const MOUSE_FORCE = 5;      // repulsion strength
 const WAVE_SPEED = 400;     // click wave expansion px/s
@@ -165,15 +165,15 @@ export default function SuminagashiBackground() {
         velX[i] += nx * 0.15;
         velY[i] += ny * 0.15;
 
-        // Gentle pull toward home to prevent particles escaping to infinity
-        velX[i] += (homeX[i] - posX[i]) * 0.002;
-        velY[i] += (homeY[i] - posY[i]) * 0.002;
+        // Very gentle pull toward home to prevent particles escaping to infinity
+        velX[i] += (homeX[i] - posX[i]) * 0.0003;
+        velY[i] += (homeY[i] - posY[i]) * 0.0003;
 
         // Mouse as hand through water
         const dx = posX[i] - mouseX;
         const dy = posY[i] - mouseY;
         const distSq = dx * dx + dy * dy;
-        const wakeRad = mouseRad * 3;
+        const wakeRad = mouseRad * 4;
         const wakeRadSq = wakeRad * wakeRad;
 
         if (distSq < wakeRadSq && distSq > 1) {
