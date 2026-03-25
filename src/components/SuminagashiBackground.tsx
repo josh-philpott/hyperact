@@ -70,7 +70,7 @@ export default function SuminagashiBackground() {
     }
 
     const displaceLocs = getLocs(displaceProg, ['u_ink', 'u_clickPos', 'u_radius', 'u_strength', 'u_active']);
-    const stampLocs = getLocs(stampProg, ['u_ink', 'u_clickPos', 'u_ringRadius', 'u_ringWidth', 'u_active']);
+    const stampLocs = getLocs(stampProg, ['u_ink', 'u_clickPos', 'u_velocity', 'u_speed', 'u_ringWidth', 'u_active']);
     const advectLocs = getLocs(advectProg, ['u_ink', 'u_time', 'u_dt', 'u_driftSpeed']);
     const outputLocs = getLocs(outputProg, ['u_ink']);
 
@@ -107,16 +107,23 @@ export default function SuminagashiBackground() {
     const ro = new ResizeObserver(() => resize());
     ro.observe(canvas);
 
-    // --- Mouse tracking (movement auto-pours ink) ---
+    // --- Mouse tracking (comet trail behind cursor) ---
     let mouseActive = false;
     let mousePos = { x: 0, y: 0 };
+    let prevMousePos = { x: 0, y: 0 };
+    let mouseVel = { x: 0, y: 0 };
     let lastMoveTime = 0;
 
     function onMouseMove(e: MouseEvent) {
       const rect = canvas.getBoundingClientRect();
+      prevMousePos = { ...mousePos };
       mousePos = {
         x: (e.clientX - rect.left) / rect.width,
         y: 1.0 - (e.clientY - rect.top) / rect.height,
+      };
+      mouseVel = {
+        x: mousePos.x - prevMousePos.x,
+        y: mousePos.y - prevMousePos.y,
       };
       mouseActive = true;
       lastMoveTime = performance.now();
@@ -175,8 +182,10 @@ export default function SuminagashiBackground() {
           gl.activeTexture(gl.TEXTURE0);
           gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
           gl.uniform1i(stampLocs.u_ink, 0);
+          const speed = Math.sqrt(mouseVel.x * mouseVel.x + mouseVel.y * mouseVel.y);
           gl.uniform2f(stampLocs.u_clickPos, mousePos.x, mousePos.y);
-          gl.uniform1f(stampLocs.u_ringRadius, 0.0);
+          gl.uniform2f(stampLocs.u_velocity, mouseVel.x, mouseVel.y);
+          gl.uniform1f(stampLocs.u_speed, speed);
           gl.uniform1f(stampLocs.u_ringWidth, 0.06);
           gl.uniform1f(stampLocs.u_active, intensity);
           drawQuad(stampProg);

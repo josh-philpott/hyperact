@@ -43,21 +43,40 @@ varying vec2 v_uv;
 
 uniform sampler2D u_ink;
 uniform vec2 u_clickPos;
-uniform float u_ringRadius;
+uniform vec2 u_velocity;    // mouse movement direction
+uniform float u_speed;      // length of velocity
 uniform float u_ringWidth;
 uniform float u_active;
 
 void main() {
   vec4 existing = texture2D(u_ink, v_uv);
 
-  if (u_active < 0.5) {
+  if (u_active < 0.01) {
     gl_FragColor = existing;
     return;
   }
 
-  float dist = length(v_uv - u_clickPos);
-  float blob = exp(-dist * dist / (2.0 * u_ringWidth * u_ringWidth));
-  blob *= smoothstep(u_ringRadius + u_ringWidth * 3.0, u_ringRadius, dist);
+  vec2 toFrag = v_uv - u_clickPos;
+  float dist = length(toFrag);
+
+  // Comet shape: tight at cursor, fans out behind direction of travel
+  float blob = 0.0;
+  if (u_speed > 0.001) {
+    vec2 dir = u_velocity / u_speed;         // normalized move direction
+    float along = dot(toFrag, -dir);         // how far behind cursor (positive = behind)
+    float across = length(toFrag - along * (-dir)); // perpendicular distance
+
+    // Teardrop: wider behind, narrow at cursor
+    float tailLen = u_ringWidth * (3.0 + u_speed * 40.0); // tail stretches with speed
+    float behindFalloff = smoothstep(tailLen, 0.0, along) * smoothstep(-u_ringWidth * 0.3, 0.0, along);
+    float widthAtPoint = u_ringWidth * (0.3 + 0.7 * smoothstep(0.0, tailLen * 0.5, along));
+    float crossFalloff = exp(-across * across / (2.0 * widthAtPoint * widthAtPoint));
+
+    blob = behindFalloff * crossFalloff;
+  } else {
+    // Stationary: soft round blob
+    blob = exp(-dist * dist / (2.0 * u_ringWidth * u_ringWidth));
+  }
 
   float ink = min(existing.r + blob * 0.04 * u_active, 1.0);
   gl_FragColor = vec4(ink, existing.gba);
