@@ -144,8 +144,8 @@ export default function SuminagashiBackground() {
         gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
         gl.uniform1i(displaceLocs.u_ink, 0);
         gl.uniform2f(displaceLocs.u_clickPos, click.x, click.y);
-        gl.uniform1f(displaceLocs.u_radius, 0.15);
-        gl.uniform1f(displaceLocs.u_strength, 0.04);
+        gl.uniform1f(displaceLocs.u_radius, 0.1);
+        gl.uniform1f(displaceLocs.u_strength, 0.03);
         gl.uniform1f(displaceLocs.u_active, 1.0);
         drawQuad(displaceProg);
         [fboA, fboB] = [fboB, fboA];
@@ -158,8 +158,8 @@ export default function SuminagashiBackground() {
         gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
         gl.uniform1i(stampLocs.u_ink, 0);
         gl.uniform2f(stampLocs.u_clickPos, click.x, click.y);
-        gl.uniform1f(stampLocs.u_ringRadius, 0.06);
-        gl.uniform1f(stampLocs.u_ringWidth, 0.02);
+        gl.uniform1f(stampLocs.u_ringRadius, 0.04);
+        gl.uniform1f(stampLocs.u_ringWidth, 0.015);
         gl.uniform1f(stampLocs.u_active, 1.0);
         drawQuad(stampProg);
         [fboA, fboB] = [fboB, fboA];
@@ -202,7 +202,6 @@ export default function SuminagashiBackground() {
       gl.deleteProgram(outputProg);
       gl.deleteBuffer(quadBuffer);
       deleteFBOs();
-      gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
   }, []);
 

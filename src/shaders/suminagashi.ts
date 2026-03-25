@@ -60,7 +60,7 @@ void main() {
   float outer = smoothstep(u_ringRadius + u_ringWidth * 0.5, u_ringRadius + u_ringWidth, dist);
   float ring = inner - outer;
 
-  float ink = min(existing.r + ring * 0.6, 1.0);
+  float ink = min(existing.r + ring * 0.35, 1.0);
   gl_FragColor = vec4(ink, existing.gba);
 }
 `;
@@ -179,7 +179,7 @@ void main() {
   float density = texture2D(u_ink, v_uv).r;
 
   vec3 bg = vec3(20.0, 18.0, 16.0) / 255.0;
-  vec3 fg = vec3(36.0, 34.0, 32.0) / 255.0;
+  vec3 fg = vec3(38.0, 35.0, 30.0) / 255.0;
   vec3 color = mix(bg, fg, density);
 
   gl_FragColor = vec4(color, 1.0);
