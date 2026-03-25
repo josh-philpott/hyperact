@@ -7,7 +7,6 @@ import {
 
 const PARTICLE_COUNT = 12000;
 const POINT_SIZE = 2.0;
-const SPRING = 0.015;       // spring-back strength
 const DAMPING = 0.92;       // velocity damping
 const MOUSE_RADIUS = 50;    // repulsion radius in px
 const MOUSE_FORCE = 5;      // repulsion strength
@@ -162,14 +161,14 @@ export default function SuminagashiBackground() {
 
       // Update particles
       for (let i = 0; i < PARTICLE_COUNT; i++) {
-        // Ambient drift
-        const [nx, ny] = noise(homeX[i], homeY[i], t);
-        const targetX = homeX[i] + nx * 30;
-        const targetY = homeY[i] + ny * 30;
+        // Ambient drift — apply as a continuous force, not a spring target
+        const [nx, ny] = noise(posX[i], posY[i], t);
+        velX[i] += nx * 0.15;
+        velY[i] += ny * 0.15;
 
-        // Spring back toward drifting home
-        velX[i] += (targetX - posX[i]) * SPRING;
-        velY[i] += (targetY - posY[i]) * SPRING;
+        // Gentle pull toward home to prevent particles escaping to infinity
+        velX[i] += (homeX[i] - posX[i]) * 0.002;
+        velY[i] += (homeY[i] - posY[i]) * 0.002;
 
         // Mouse repulsion
         const dx = posX[i] - mouseX;
