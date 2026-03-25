@@ -14,19 +14,23 @@ export default function SuminagashiBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const canvasEl = canvasRef.current;
+    if (!canvasEl) return;
 
-    const gl = canvas.getContext("webgl", {
+    const glCtx = canvasEl.getContext("webgl", {
       alpha: false,
       antialias: false,
       preserveDrawingBuffer: false,
     });
 
-    if (!gl) {
+    if (!glCtx) {
       console.warn("WebGL not supported");
       return;
     }
+
+    // Non-null references for use in closures (TS doesn't narrow across closures)
+    const canvas = canvasEl;
+    const gl = glCtx;
 
     // --- Programs ---
     const displaceProg = createProgram(gl, vertexShader, displacementShader);
