@@ -155,12 +155,13 @@ export default function SuminagashiBackground() {
         slowFrames = Math.max(0, slowFrames - 1);
       }
 
-      // Pour ink at mouse position (fades when mouse sits still)
+      // Only pour ink while mouse is actively moving
       if (mouseActive) {
         const stillMs = performance.now() - lastMoveTime;
-        const intensity = Math.max(0, 1.0 - stillMs / 1500); // fades to 0 over 1.5s
+        const speed = Math.sqrt(mouseVel.x * mouseVel.x + mouseVel.y * mouseVel.y);
+        const moving = stillMs < 80 && speed > 0.001;
 
-        if (intensity > 0.01) {
+        if (moving) {
           // Displacement pass
           gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
           gl.viewport(0, 0, simW, simH);
@@ -170,7 +171,7 @@ export default function SuminagashiBackground() {
           gl.uniform1i(displaceLocs.u_ink, 0);
           gl.uniform2f(displaceLocs.u_clickPos, mousePos.x, mousePos.y);
           gl.uniform1f(displaceLocs.u_radius, 0.1);
-          gl.uniform1f(displaceLocs.u_strength, 0.008 * intensity);
+          gl.uniform1f(displaceLocs.u_strength, 0.005);
           gl.uniform1f(displaceLocs.u_active, 1.0);
           drawQuad(displaceProg);
           [fboA, fboB] = [fboB, fboA];
@@ -182,12 +183,11 @@ export default function SuminagashiBackground() {
           gl.activeTexture(gl.TEXTURE0);
           gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
           gl.uniform1i(stampLocs.u_ink, 0);
-          const speed = Math.sqrt(mouseVel.x * mouseVel.x + mouseVel.y * mouseVel.y);
           gl.uniform2f(stampLocs.u_clickPos, mousePos.x, mousePos.y);
           gl.uniform2f(stampLocs.u_velocity, mouseVel.x, mouseVel.y);
           gl.uniform1f(stampLocs.u_speed, speed);
           gl.uniform1f(stampLocs.u_ringWidth, 0.06);
-          gl.uniform1f(stampLocs.u_active, intensity);
+          gl.uniform1f(stampLocs.u_active, 1.0);
           drawQuad(stampProg);
           [fboA, fboB] = [fboB, fboA];
         }

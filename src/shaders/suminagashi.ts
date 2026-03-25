@@ -66,19 +66,18 @@ void main() {
     float along = dot(toFrag, -dir);         // how far behind cursor (positive = behind)
     float across = length(toFrag - along * (-dir)); // perpendicular distance
 
-    // Teardrop: wider behind, narrow at cursor
-    float tailLen = u_ringWidth * (3.0 + u_speed * 40.0); // tail stretches with speed
-    float behindFalloff = smoothstep(tailLen, 0.0, along) * smoothstep(-u_ringWidth * 0.3, 0.0, along);
-    float widthAtPoint = u_ringWidth * (0.3 + 0.7 * smoothstep(0.0, tailLen * 0.5, along));
+    // Teardrop: nothing at cursor, fans out behind
+    float tailLen = u_ringWidth * (3.0 + u_speed * 50.0);
+    float behindFalloff = smoothstep(tailLen, tailLen * 0.1, along) * smoothstep(0.0, tailLen * 0.15, along);
+    float widthAtPoint = u_ringWidth * (0.2 + 0.8 * smoothstep(0.0, tailLen * 0.4, along));
     float crossFalloff = exp(-across * across / (2.0 * widthAtPoint * widthAtPoint));
 
     blob = behindFalloff * crossFalloff;
   } else {
-    // Stationary: soft round blob
-    blob = exp(-dist * dist / (2.0 * u_ringWidth * u_ringWidth));
+    blob = 0.0;
   }
 
-  float ink = min(existing.r + blob * 0.04 * u_active, 1.0);
+  float ink = min(existing.r + blob * 0.03 * u_active, 1.0);
   gl_FragColor = vec4(ink, existing.gba);
 }
 `;
