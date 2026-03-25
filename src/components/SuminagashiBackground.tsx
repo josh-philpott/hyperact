@@ -85,19 +85,19 @@ export default function SuminagashiBackground() {
     let mouseY = -9999;
     let mouseVX = 0;
     let mouseVY = 0;
-    let prevMouseX = -9999;
-    let prevMouseY = -9999;
+    let lastMouseMoveTime = 0;
 
     function onMouseMove(e: MouseEvent) {
       const rect = canvas.getBoundingClientRect();
-      prevMouseX = mouseX;
-      prevMouseY = mouseY;
-      mouseX = (e.clientX - rect.left) * dpr;
-      mouseY = (e.clientY - rect.top) * dpr;
-      if (prevMouseX > -9000) {
-        mouseVX = mouseX - prevMouseX;
-        mouseVY = mouseY - prevMouseY;
+      const newX = (e.clientX - rect.left) * dpr;
+      const newY = (e.clientY - rect.top) * dpr;
+      if (mouseX > -9000) {
+        mouseVX = newX - mouseX;
+        mouseVY = newY - mouseY;
       }
+      mouseX = newX;
+      mouseY = newY;
+      lastMouseMoveTime = performance.now();
     }
 
     function onMouseLeave() {
@@ -147,6 +147,12 @@ export default function SuminagashiBackground() {
       const dt = Math.min((time - lastTime) / 1000, 0.05);
       lastTime = time;
       const t = time / 1000;
+
+      // Decay mouse velocity when not moving
+      if (performance.now() - lastMouseMoveTime > 50) {
+        mouseVX = 0;
+        mouseVY = 0;
+      }
 
       const mouseRad = MOUSE_RADIUS * dpr;
 
