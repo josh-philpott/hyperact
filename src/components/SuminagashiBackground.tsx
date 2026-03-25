@@ -149,7 +149,6 @@ export default function SuminagashiBackground() {
       const t = time / 1000;
 
       const mouseRad = MOUSE_RADIUS * dpr;
-      const mouseRadSq = mouseRad * mouseRad;
 
       // Update waves
       for (let w = waves.length - 1; w >= 0; w--) {
@@ -170,25 +169,59 @@ export default function SuminagashiBackground() {
         velX[i] += (homeX[i] - posX[i]) * 0.002;
         velY[i] += (homeY[i] - posY[i]) * 0.002;
 
-        // Mouse repulsion
+        // Mouse as hand through water
         const dx = posX[i] - mouseX;
         const dy = posY[i] - mouseY;
         const distSq = dx * dx + dy * dy;
-        if (distSq < mouseRadSq && distSq > 1) {
-          const dist = Math.sqrt(distSq);
-          const force = (1.0 - dist / mouseRad) * MOUSE_FORCE;
-          velX[i] += (dx / dist) * force;
-          velY[i] += (dy / dist) * force;
-        }
+        const wakeRad = mouseRad * 5;
+        const wakeRadSq = wakeRad * wakeRad;
 
-        // Mouse current — drag nearby particles in direction of mouse movement
-        const currentRad = mouseRad * 4;
-        const currentRadSq = currentRad * currentRad;
-        if (distSq < currentRadSq && distSq > 1) {
+        if (distSq < wakeRadSq && distSq > 1) {
           const dist = Math.sqrt(distSq);
-          const influence = (1.0 - dist / currentRad) * 0.4;
-          velX[i] += mouseVX * influence;
-          velY[i] += mouseVY * influence;
+          const mouseSpeed = Math.sqrt(mouseVX * mouseVX + mouseVY * mouseVY);
+          const falloff = 1.0 - dist / wakeRad;
+
+          // 1. Close repulsion — push particles out of the way
+          if (dist < mouseRad) {
+            const pushForce = (1.0 - dist / mouseRad) * MOUSE_FORCE;
+            velX[i] += (dx / dist) * pushForce;
+            velY[i] += (dy / dist) * pushForce;
+          }
+
+          if (mouseSpeed > 0.5) {
+            const mdx = mouseVX / mouseSpeed; // normalized mouse direction
+            const mdy = mouseVY / mouseSpeed;
+
+            // How far "along" the mouse direction is this particle?
+            // positive = in front, negative = behind
+            const along = -(dx * mdx + dy * mdy);
+            // How far to the side?
+            const across = -dx * mdy + dy * mdx;
+
+            // 2. Forward push — particles near the path get dragged along
+            const dragStrength = falloff * falloff * mouseSpeed * 0.5;
+            velX[i] += mdx * dragStrength;
+            velY[i] += mdy * dragStrength;
+
+            // 3. Side displacement — particles in front get pushed sideways
+            if (along > 0 && dist < wakeRad * 0.6) {
+              const sideForce = falloff * mouseSpeed * 0.3 * Math.sign(across);
+              velX[i] += -mdy * sideForce;
+              velY[i] += mdx * sideForce;
+            }
+
+            // 4. Wake suction — particles behind get pulled inward (eddies)
+            if (along < 0 && dist > mouseRad) {
+              const suctionStrength = falloff * mouseSpeed * 0.2;
+              velX[i] -= (dx / dist) * suctionStrength;
+              velY[i] -= (dy / dist) * suctionStrength;
+
+              // 5. Vortex curl — add rotation in the wake for eddy currents
+              const curlStrength = falloff * mouseSpeed * 0.15 * Math.sign(across);
+              velX[i] += -mdy * curlStrength;
+              velY[i] += mdx * curlStrength;
+            }
+          }
         }
 
         // Click wave push
