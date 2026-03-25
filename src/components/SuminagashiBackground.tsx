@@ -110,6 +110,7 @@ export default function SuminagashiBackground() {
     // --- Mouse tracking (movement auto-pours ink) ---
     let mouseActive = false;
     let mousePos = { x: 0, y: 0 };
+    let lastMoveTime = 0;
 
     function onMouseMove(e: MouseEvent) {
       const rect = canvas.getBoundingClientRect();
@@ -118,6 +119,7 @@ export default function SuminagashiBackground() {
         y: 1.0 - (e.clientY - rect.top) / rect.height,
       };
       mouseActive = true;
+      lastMoveTime = performance.now();
     }
 
     function onMouseLeave() {
@@ -146,35 +148,40 @@ export default function SuminagashiBackground() {
         slowFrames = Math.max(0, slowFrames - 1);
       }
 
-      // Pour ink at mouse position
+      // Pour ink at mouse position (fades when mouse sits still)
       if (mouseActive) {
-        // Displacement pass
-        gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
-        gl.viewport(0, 0, simW, simH);
-        gl.useProgram(displaceProg);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
-        gl.uniform1i(displaceLocs.u_ink, 0);
-        gl.uniform2f(displaceLocs.u_clickPos, mousePos.x, mousePos.y);
-        gl.uniform1f(displaceLocs.u_radius, 0.1);
-        gl.uniform1f(displaceLocs.u_strength, 0.008);
-        gl.uniform1f(displaceLocs.u_active, 1.0);
-        drawQuad(displaceProg);
-        [fboA, fboB] = [fboB, fboA];
+        const stillMs = performance.now() - lastMoveTime;
+        const intensity = Math.max(0, 1.0 - stillMs / 1500); // fades to 0 over 1.5s
 
-        // Stamp pass
-        gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
-        gl.viewport(0, 0, simW, simH);
-        gl.useProgram(stampProg);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
-        gl.uniform1i(stampLocs.u_ink, 0);
-        gl.uniform2f(stampLocs.u_clickPos, mousePos.x, mousePos.y);
-        gl.uniform1f(stampLocs.u_ringRadius, 0.0);
-        gl.uniform1f(stampLocs.u_ringWidth, 0.04);
-        gl.uniform1f(stampLocs.u_active, 1.0);
-        drawQuad(stampProg);
-        [fboA, fboB] = [fboB, fboA];
+        if (intensity > 0.01) {
+          // Displacement pass
+          gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
+          gl.viewport(0, 0, simW, simH);
+          gl.useProgram(displaceProg);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
+          gl.uniform1i(displaceLocs.u_ink, 0);
+          gl.uniform2f(displaceLocs.u_clickPos, mousePos.x, mousePos.y);
+          gl.uniform1f(displaceLocs.u_radius, 0.1);
+          gl.uniform1f(displaceLocs.u_strength, 0.008 * intensity);
+          gl.uniform1f(displaceLocs.u_active, 1.0);
+          drawQuad(displaceProg);
+          [fboA, fboB] = [fboB, fboA];
+
+          // Stamp pass
+          gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
+          gl.viewport(0, 0, simW, simH);
+          gl.useProgram(stampProg);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
+          gl.uniform1i(stampLocs.u_ink, 0);
+          gl.uniform2f(stampLocs.u_clickPos, mousePos.x, mousePos.y);
+          gl.uniform1f(stampLocs.u_ringRadius, 0.0);
+          gl.uniform1f(stampLocs.u_ringWidth, 0.06);
+          gl.uniform1f(stampLocs.u_active, intensity);
+          drawQuad(stampProg);
+          [fboA, fboB] = [fboB, fboA];
+        }
       }
 
       // Advection pass (every frame)

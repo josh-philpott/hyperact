@@ -59,7 +59,7 @@ void main() {
   float blob = exp(-dist * dist / (2.0 * u_ringWidth * u_ringWidth));
   blob *= smoothstep(u_ringRadius + u_ringWidth * 3.0, u_ringRadius, dist);
 
-  float ink = min(existing.r + blob * 0.12, 1.0);
+  float ink = min(existing.r + blob * 0.04 * u_active, 1.0);
   gl_FragColor = vec4(ink, existing.gba);
 }
 `;
