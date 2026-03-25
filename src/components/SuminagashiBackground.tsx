@@ -8,7 +8,7 @@ import {
 const PARTICLE_COUNT = 12000;
 const POINT_SIZE = 2.0;
 const DAMPING = 0.92;       // velocity damping
-const MOUSE_RADIUS = 50;    // repulsion radius in px
+const MOUSE_RADIUS = 25;    // repulsion radius in px
 const MOUSE_FORCE = 5;      // repulsion strength
 const WAVE_SPEED = 400;     // click wave expansion px/s
 const WAVE_FORCE = 12;      // click wave push strength
@@ -173,7 +173,7 @@ export default function SuminagashiBackground() {
         const dx = posX[i] - mouseX;
         const dy = posY[i] - mouseY;
         const distSq = dx * dx + dy * dy;
-        const wakeRad = mouseRad * 5;
+        const wakeRad = mouseRad * 3;
         const wakeRadSq = wakeRad * wakeRad;
 
         if (distSq < wakeRadSq && distSq > 1) {
