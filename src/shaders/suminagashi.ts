@@ -247,6 +247,12 @@ export function createFBO(
   if (!fbo) throw new Error("Failed to create framebuffer");
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+  const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  if (status !== gl.FRAMEBUFFER_COMPLETE) {
+    gl.deleteFramebuffer(fbo);
+    gl.deleteTexture(texture);
+    throw new Error(`Framebuffer incomplete: 0x${status.toString(16)}`);
+  }
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
   return { texture, fbo };
