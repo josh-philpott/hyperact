@@ -151,8 +151,8 @@ float snoise(vec3 v) {
 }
 
 void main() {
-  float t = u_time;
-  vec2 pos = v_uv * 4.0;
+  float t = u_time * 0.15;
+  vec2 pos = v_uv * 2.5;
 
   float vx = snoise(vec3(pos, t)) * u_driftSpeed;
   float vy = snoise(vec3(pos + 100.0, t)) * u_driftSpeed;
@@ -179,7 +179,7 @@ void main() {
   float density = texture2D(u_ink, v_uv).r;
 
   vec3 bg = vec3(20.0, 18.0, 16.0) / 255.0;
-  vec3 fg = vec3(38.0, 35.0, 30.0) / 255.0;
+  vec3 fg = vec3(55.0, 50.0, 42.0) / 255.0;
   vec3 color = mix(bg, fg, density);
 
   gl_FragColor = vec4(color, 1.0);

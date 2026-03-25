@@ -50,8 +50,6 @@ export default function SuminagashiBackground() {
     let lastTime = 0;
     let slowFrames = 0;
     let rafId = 0;
-    const pendingClicks: Array<{ x: number; y: number }> = [];
-
     // --- Helpers ---
     function drawQuad(program: WebGLProgram) {
       gl.useProgram(program);
@@ -109,15 +107,34 @@ export default function SuminagashiBackground() {
     const ro = new ResizeObserver(() => resize());
     ro.observe(canvas);
 
-    // --- Click handling ---
-    function onClick(e: MouseEvent) {
+    // --- Mouse pour handling ---
+    let pouring = false;
+    let pourPos = { x: 0, y: 0 };
+
+    function toUV(e: MouseEvent) {
       const rect = canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = 1.0 - (e.clientY - rect.top) / rect.height;
-      pendingClicks.push({ x, y });
+      return {
+        x: (e.clientX - rect.left) / rect.width,
+        y: 1.0 - (e.clientY - rect.top) / rect.height,
+      };
     }
 
-    window.addEventListener("click", onClick);
+    function onMouseDown(e: MouseEvent) {
+      pouring = true;
+      pourPos = toUV(e);
+    }
+
+    function onMouseMove(e: MouseEvent) {
+      if (pouring) pourPos = toUV(e);
+    }
+
+    function onMouseUp() {
+      pouring = false;
+    }
+
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
 
     // --- Render loop ---
     function frame(time: number) {
@@ -138,8 +155,8 @@ export default function SuminagashiBackground() {
         slowFrames = Math.max(0, slowFrames - 1);
       }
 
-      // Process pending clicks
-      for (const click of pendingClicks) {
+      // Pour ink while mouse is held down
+      if (pouring) {
         // Displacement pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
         gl.viewport(0, 0, simW, simH);
@@ -147,9 +164,9 @@ export default function SuminagashiBackground() {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
         gl.uniform1i(displaceLocs.u_ink, 0);
-        gl.uniform2f(displaceLocs.u_clickPos, click.x, click.y);
-        gl.uniform1f(displaceLocs.u_radius, 0.1);
-        gl.uniform1f(displaceLocs.u_strength, 0.03);
+        gl.uniform2f(displaceLocs.u_clickPos, pourPos.x, pourPos.y);
+        gl.uniform1f(displaceLocs.u_radius, 0.12);
+        gl.uniform1f(displaceLocs.u_strength, 0.02);
         gl.uniform1f(displaceLocs.u_active, 1.0);
         drawQuad(displaceProg);
         [fboA, fboB] = [fboB, fboA];
@@ -161,14 +178,13 @@ export default function SuminagashiBackground() {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
         gl.uniform1i(stampLocs.u_ink, 0);
-        gl.uniform2f(stampLocs.u_clickPos, click.x, click.y);
-        gl.uniform1f(stampLocs.u_ringRadius, 0.04);
-        gl.uniform1f(stampLocs.u_ringWidth, 0.015);
+        gl.uniform2f(stampLocs.u_clickPos, pourPos.x, pourPos.y);
+        gl.uniform1f(stampLocs.u_ringRadius, 0.03);
+        gl.uniform1f(stampLocs.u_ringWidth, 0.012);
         gl.uniform1f(stampLocs.u_active, 1.0);
         drawQuad(stampProg);
         [fboA, fboB] = [fboB, fboA];
       }
-      pendingClicks.length = 0;
 
       // Advection pass (every frame)
       gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
@@ -179,7 +195,7 @@ export default function SuminagashiBackground() {
       gl.uniform1i(advectLocs.u_ink, 0);
       gl.uniform1f(advectLocs.u_time, time / 1000);
       gl.uniform1f(advectLocs.u_dt, dt);
-      gl.uniform1f(advectLocs.u_driftSpeed, 0.003);
+      gl.uniform1f(advectLocs.u_driftSpeed, 0.08);
       drawQuad(advectProg);
       [fboA, fboB] = [fboB, fboA];
 
@@ -198,7 +214,9 @@ export default function SuminagashiBackground() {
     // --- Cleanup ---
     return () => {
       cancelAnimationFrame(rafId);
-      window.removeEventListener("click", onClick);
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
       ro.disconnect();
       gl.deleteProgram(displaceProg);
       gl.deleteProgram(stampProg);
