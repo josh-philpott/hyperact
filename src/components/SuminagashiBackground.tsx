@@ -58,33 +58,19 @@ export default function SuminagashiBackground() {
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
 
-    function setUniform1f(prog: WebGLProgram, name: string, v: number) {
-      gl.uniform1f(gl.getUniformLocation(prog, name), v);
+    // --- Cached uniform locations ---
+    function getLocs(program: WebGLProgram, names: string[]) {
+      const locs: Record<string, WebGLUniformLocation | null> = {};
+      for (const name of names) {
+        locs[name] = gl.getUniformLocation(program, name);
+      }
+      return locs;
     }
 
-    function setUniform2f(
-      prog: WebGLProgram,
-      name: string,
-      x: number,
-      y: number,
-    ) {
-      gl.uniform2f(gl.getUniformLocation(prog, name), x, y);
-    }
-
-    function setUniform1i(prog: WebGLProgram, name: string, v: number) {
-      gl.uniform1i(gl.getUniformLocation(prog, name), v);
-    }
-
-    function bindInputTexture(
-      program: WebGLProgram,
-      texture: WebGLTexture,
-      unit: number,
-      name: string,
-    ) {
-      gl.activeTexture(gl.TEXTURE0 + unit);
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      setUniform1i(program, name, unit);
-    }
+    const displaceLocs = getLocs(displaceProg, ['u_ink', 'u_clickPos', 'u_radius', 'u_strength', 'u_active']);
+    const stampLocs = getLocs(stampProg, ['u_ink', 'u_clickPos', 'u_ringRadius', 'u_ringWidth', 'u_active']);
+    const advectLocs = getLocs(advectProg, ['u_ink', 'u_time', 'u_dt', 'u_driftSpeed']);
+    const outputLocs = getLocs(outputProg, ['u_ink']);
 
     // --- FBO management ---
     function deleteFBOs() {
@@ -133,6 +119,7 @@ export default function SuminagashiBackground() {
     function frame(time: number) {
       rafId = requestAnimationFrame(frame);
 
+      if (lastTime === 0) { lastTime = time; }
       const dt = Math.min((time - lastTime) / 1000, 0.05);
       lastTime = time;
 
@@ -153,11 +140,13 @@ export default function SuminagashiBackground() {
         gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
         gl.viewport(0, 0, simW, simH);
         gl.useProgram(displaceProg);
-        bindInputTexture(displaceProg, fboA.texture, 0, "u_ink");
-        setUniform2f(displaceProg, "u_clickPos", click.x, click.y);
-        setUniform1f(displaceProg, "u_radius", 0.15);
-        setUniform1f(displaceProg, "u_strength", 0.04);
-        setUniform1f(displaceProg, "u_active", 1.0);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
+        gl.uniform1i(displaceLocs.u_ink, 0);
+        gl.uniform2f(displaceLocs.u_clickPos, click.x, click.y);
+        gl.uniform1f(displaceLocs.u_radius, 0.15);
+        gl.uniform1f(displaceLocs.u_strength, 0.04);
+        gl.uniform1f(displaceLocs.u_active, 1.0);
         drawQuad(displaceProg);
         [fboA, fboB] = [fboB, fboA];
 
@@ -165,11 +154,13 @@ export default function SuminagashiBackground() {
         gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
         gl.viewport(0, 0, simW, simH);
         gl.useProgram(stampProg);
-        bindInputTexture(stampProg, fboA.texture, 0, "u_ink");
-        setUniform2f(stampProg, "u_clickPos", click.x, click.y);
-        setUniform1f(stampProg, "u_ringRadius", 0.06);
-        setUniform1f(stampProg, "u_ringWidth", 0.02);
-        setUniform1f(stampProg, "u_active", 1.0);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
+        gl.uniform1i(stampLocs.u_ink, 0);
+        gl.uniform2f(stampLocs.u_clickPos, click.x, click.y);
+        gl.uniform1f(stampLocs.u_ringRadius, 0.06);
+        gl.uniform1f(stampLocs.u_ringWidth, 0.02);
+        gl.uniform1f(stampLocs.u_active, 1.0);
         drawQuad(stampProg);
         [fboA, fboB] = [fboB, fboA];
       }
@@ -179,10 +170,12 @@ export default function SuminagashiBackground() {
       gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
       gl.viewport(0, 0, simW, simH);
       gl.useProgram(advectProg);
-      bindInputTexture(advectProg, fboA.texture, 0, "u_ink");
-      setUniform1f(advectProg, "u_time", time / 1000);
-      setUniform1f(advectProg, "u_dt", dt);
-      setUniform1f(advectProg, "u_driftSpeed", 0.003);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
+      gl.uniform1i(advectLocs.u_ink, 0);
+      gl.uniform1f(advectLocs.u_time, time / 1000);
+      gl.uniform1f(advectLocs.u_dt, dt);
+      gl.uniform1f(advectLocs.u_driftSpeed, 0.003);
       drawQuad(advectProg);
       [fboA, fboB] = [fboB, fboA];
 
@@ -190,7 +183,9 @@ export default function SuminagashiBackground() {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.useProgram(outputProg);
-      bindInputTexture(outputProg, fboA.texture, 0, "u_ink");
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
+      gl.uniform1i(outputLocs.u_ink, 0);
       drawQuad(outputProg);
     }
 
