@@ -56,11 +56,10 @@ void main() {
   }
 
   float dist = length(v_uv - u_clickPos);
-  float inner = smoothstep(u_ringRadius - u_ringWidth, u_ringRadius - u_ringWidth * 0.5, dist);
-  float outer = smoothstep(u_ringRadius + u_ringWidth * 0.5, u_ringRadius + u_ringWidth, dist);
-  float ring = inner - outer;
+  float blob = exp(-dist * dist / (2.0 * u_ringWidth * u_ringWidth));
+  blob *= smoothstep(u_ringRadius + u_ringWidth * 3.0, u_ringRadius, dist);
 
-  float ink = min(existing.r + ring * 0.35, 1.0);
+  float ink = min(existing.r + blob * 0.12, 1.0);
   gl_FragColor = vec4(ink, existing.gba);
 }
 `;

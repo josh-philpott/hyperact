@@ -107,34 +107,25 @@ export default function SuminagashiBackground() {
     const ro = new ResizeObserver(() => resize());
     ro.observe(canvas);
 
-    // --- Mouse pour handling ---
-    let pouring = false;
-    let pourPos = { x: 0, y: 0 };
+    // --- Mouse tracking (movement auto-pours ink) ---
+    let mouseActive = false;
+    let mousePos = { x: 0, y: 0 };
 
-    function toUV(e: MouseEvent) {
+    function onMouseMove(e: MouseEvent) {
       const rect = canvas.getBoundingClientRect();
-      return {
+      mousePos = {
         x: (e.clientX - rect.left) / rect.width,
         y: 1.0 - (e.clientY - rect.top) / rect.height,
       };
+      mouseActive = true;
     }
 
-    function onMouseDown(e: MouseEvent) {
-      pouring = true;
-      pourPos = toUV(e);
+    function onMouseLeave() {
+      mouseActive = false;
     }
 
-    function onMouseMove(e: MouseEvent) {
-      if (pouring) pourPos = toUV(e);
-    }
-
-    function onMouseUp() {
-      pouring = false;
-    }
-
-    window.addEventListener("mousedown", onMouseDown);
     window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("mouseleave", onMouseLeave);
 
     // --- Render loop ---
     function frame(time: number) {
@@ -155,8 +146,8 @@ export default function SuminagashiBackground() {
         slowFrames = Math.max(0, slowFrames - 1);
       }
 
-      // Pour ink while mouse is held down
-      if (pouring) {
+      // Pour ink at mouse position
+      if (mouseActive) {
         // Displacement pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, fboB.fbo);
         gl.viewport(0, 0, simW, simH);
@@ -164,9 +155,9 @@ export default function SuminagashiBackground() {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
         gl.uniform1i(displaceLocs.u_ink, 0);
-        gl.uniform2f(displaceLocs.u_clickPos, pourPos.x, pourPos.y);
-        gl.uniform1f(displaceLocs.u_radius, 0.12);
-        gl.uniform1f(displaceLocs.u_strength, 0.02);
+        gl.uniform2f(displaceLocs.u_clickPos, mousePos.x, mousePos.y);
+        gl.uniform1f(displaceLocs.u_radius, 0.1);
+        gl.uniform1f(displaceLocs.u_strength, 0.008);
         gl.uniform1f(displaceLocs.u_active, 1.0);
         drawQuad(displaceProg);
         [fboA, fboB] = [fboB, fboA];
@@ -178,9 +169,9 @@ export default function SuminagashiBackground() {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, fboA.texture);
         gl.uniform1i(stampLocs.u_ink, 0);
-        gl.uniform2f(stampLocs.u_clickPos, pourPos.x, pourPos.y);
-        gl.uniform1f(stampLocs.u_ringRadius, 0.03);
-        gl.uniform1f(stampLocs.u_ringWidth, 0.012);
+        gl.uniform2f(stampLocs.u_clickPos, mousePos.x, mousePos.y);
+        gl.uniform1f(stampLocs.u_ringRadius, 0.0);
+        gl.uniform1f(stampLocs.u_ringWidth, 0.04);
         gl.uniform1f(stampLocs.u_active, 1.0);
         drawQuad(stampProg);
         [fboA, fboB] = [fboB, fboA];
@@ -214,9 +205,8 @@ export default function SuminagashiBackground() {
     // --- Cleanup ---
     return () => {
       cancelAnimationFrame(rafId);
-      window.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+      document.removeEventListener("mouseleave", onMouseLeave);
       ro.disconnect();
       gl.deleteProgram(displaceProg);
       gl.deleteProgram(stampProg);
