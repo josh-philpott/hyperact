@@ -1,4 +1,5 @@
 import { useState } from "react";
+import SuminagashiBackground from "./components/SuminagashiBackground";
 
 function Logo() {
   // Stylized "H" made of gold squares in a 3x3 grid
@@ -49,7 +50,9 @@ export default function App() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-bg px-6">
+    <>
+    <SuminagashiBackground />
+    <main className="flex min-h-screen flex-col items-center justify-center px-6">
       <div className="flex flex-col items-center gap-6">
         {/* Coming Soon label */}
         <p className="font-mono text-[12px] uppercase tracking-[4px] text-muted">
@@ -126,5 +129,6 @@ export default function App() {
         </nav>
       </div>
     </main>
+    </>
   );
 }
