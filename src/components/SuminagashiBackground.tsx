@@ -181,31 +181,28 @@ export default function SuminagashiBackground() {
           const mouseSpeed = Math.sqrt(mouseVX * mouseVX + mouseVY * mouseVY);
           const falloff = 1.0 - dist / wakeRad;
 
-          // 1. Close repulsion — push particles out of the way
-          if (dist < mouseRad) {
-            const pushForce = (1.0 - dist / mouseRad) * MOUSE_FORCE;
-            velX[i] += (dx / dist) * pushForce;
-            velY[i] += (dy / dist) * pushForce;
-          }
-
           if (mouseSpeed > 0.5) {
-            const mdx = mouseVX / mouseSpeed; // normalized mouse direction
+            const mdx = mouseVX / mouseSpeed;
             const mdy = mouseVY / mouseSpeed;
 
-            // How far "along" the mouse direction is this particle?
-            // positive = in front, negative = behind
+            // Close repulsion — only when moving
+            if (dist < mouseRad) {
+              const pushForce = (1.0 - dist / mouseRad) * MOUSE_FORCE * Math.min(mouseSpeed * 0.3, 1.0);
+              velX[i] += (dx / dist) * pushForce;
+              velY[i] += (dy / dist) * pushForce;
+            }
+
             const along = -(dx * mdx + dy * mdy);
-            // How far to the side?
             const across = -dx * mdy + dy * mdx;
 
-            // 2. Forward push — particles near the path get dragged along
+            // Forward drag — particles near the path get carried along
             const dragStrength = falloff * falloff * mouseSpeed * 0.5;
             velX[i] += mdx * dragStrength;
             velY[i] += mdy * dragStrength;
 
-            // 3. Side displacement — particles in front get pushed sideways
-            if (along > 0 && dist < wakeRad * 0.6) {
-              const sideForce = falloff * mouseSpeed * 0.3 * Math.sign(across);
+            // Side displacement — gentler, only very close in front
+            if (along > 0 && dist < wakeRad * 0.3) {
+              const sideForce = falloff * mouseSpeed * 0.1 * Math.sign(across);
               velX[i] += -mdy * sideForce;
               velY[i] += mdx * sideForce;
             }
