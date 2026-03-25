@@ -1,37 +1,11 @@
-import { useState } from "react";
-import SuminagashiBackground from "./components/SuminagashiBackground";
-
-function Logo() {
-  // Stylized "H" made of gold squares in a 3x3 grid
-  // Pattern: ■ _ ▫  /  ■ ■ ▫  /  ■ _ ■
-  // ■ = solid gold, ▫ = dim gold, _ = empty
-  const grid = [
-    [true, null, "dim"],
-    [true, true, "dim"],
-    [true, null, true],
-  ] as const;
-
-  return (
-    <div className="grid grid-cols-3 gap-1" aria-hidden="true">
-      {grid.flat().map((cell, i) => (
-        <div
-          key={i}
-          className={`size-4 rounded-[4px] ${
-            cell === true
-              ? "bg-gold"
-              : cell === "dim"
-                ? "bg-gold-dim"
-                : "bg-transparent"
-          }`}
-        />
-      ))}
-    </div>
-  );
-}
+import { useState, useRef } from "react";
+import { Agentation } from "agentation";
+import DitheredLogo from "./components/DitheredLogo";
 
 export default function App() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const logoAnchorRef = useRef<HTMLDivElement>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,7 +25,7 @@ export default function App() {
 
   return (
     <>
-    <SuminagashiBackground />
+    <DitheredLogo anchorRef={logoAnchorRef} />
     <main className="flex min-h-screen flex-col items-center justify-center px-6">
       <div className="flex flex-col items-center gap-6">
         {/* Coming Soon label */}
@@ -59,8 +33,8 @@ export default function App() {
           Coming soon
         </p>
 
-        {/* Logo */}
-        <Logo />
+        {/* Logo placeholder — reserves space in layout, dots render on the canvas */}
+        <div ref={logoAnchorRef} style={{ width: 100, height: 100 }} aria-hidden="true" />
 
         {/* Title */}
         <h1 className="font-mono text-[56px] font-medium leading-[96px] text-gold">
@@ -129,6 +103,7 @@ export default function App() {
         </nav>
       </div>
     </main>
+    {process.env.NODE_ENV === "development" && <Agentation />}
     </>
   );
 }
