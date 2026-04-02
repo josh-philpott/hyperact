@@ -105,8 +105,8 @@ export default function App() {
         </nav>
       </div>
     </main>
-    {process.env.NODE_ENV === "development" && <Agentation />}
-    {process.env.NODE_ENV === "development" && <DialRoot position="top-right" />}
+    {import.meta.env.DEV && <Agentation />}
+    {import.meta.env.DEV && <DialRoot position="top-right" />}
     </>
   );
 }
