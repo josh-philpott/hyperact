@@ -1,45 +1,17 @@
 import { useEffect, useRef, useCallback } from "react";
-
-// Grid and sizing
-const GRID_CSS_STEP = 4; // grid spacing across entire viewport (CSS px)
-const DOT_SIZE = 1;
-const BG_ALPHA = 0.13;
-const CORNER_ALPHA = 0.5; // dimmed corners on logo squares
-const DIM_SQUARE_ALPHA = 0.25; // the two faint squares
+import { useDialKit } from "dialkit";
 
 // Logo layout in grid cells (not pixels) — guarantees uniform squares
-// Each square is SQ_CELLS x SQ_CELLS dots, separated by GAP_CELLS empty cells
-const SQ_CELLS = 6; // dots per square side
-const GAP_CELLS = 1; // gap between squares in grid cells
-const PAD_CELLS = 1; // padding around the logo
-// Total grid: PAD + SQ + GAP + SQ + GAP + SQ + PAD = 1+6+1+6+1+6+1 = 22 cells
+const SQ_CELLS = 6;
+const GAP_CELLS = 1;
+const PAD_CELLS = 1;
 const LOGO_GRID_SIZE = PAD_CELLS * 2 + SQ_CELLS * 3 + GAP_CELLS * 2; // 22
 
-// Which cells in the 3x3 grid are filled, and whether dim
-// Pattern: ■ _ ▫  /  ■ ■ ▫  /  ■ _ ■
 const LOGO_PATTERN: (false | "solid" | "dim")[][] = [
   ["solid", false,  "dim"],
   ["solid", "solid", "dim"],
   ["solid", false,  "solid"],
 ];
-
-// Glow, flicker, and disruption boost
-const BLOOM_BLUR = 5; // CSS px blur radius for bloom pass
-const BLOOM_ALPHA = 0.15; // how visible the bloom layer is
-const FLICKER_SPEED = 8; // how fast dots flicker
-const FLICKER_AMOUNT = 0.2; // max alpha variation (±) for bg dots
-const BOOST_AMOUNT = 0.6; // how much brighter disrupted logo dots get
-const BOOST_AMOUNT_BG = 0.8; // how much brighter disrupted bg dots get (stronger since they start dim)
-const BOOST_DECAY = 0.02; // how fast the boost fades per frame (slow fade = ripple trail)
-
-// Interaction
-const REPULSE_RADIUS = 50;
-const MAX_DISPLACEMENT_BASE = 20; // displacement at slowest speed
-const MAX_DISPLACEMENT_FAST = 60; // displacement at high speed
-const LERP_FACTOR_BASE = 0.1; // heal speed at slowest (current default)
-const LERP_FACTOR_FAST = 0.02; // heal speed at high velocity (much slower return)
-const VELOCITY_SCALE = 0.05; // maps pixel velocity to 0-1 influence
-const SETTLE_THRESHOLD = 0.5;
 
 const GOLD_R = 201,
   GOLD_G = 168,
@@ -50,6 +22,35 @@ interface Props {
 }
 
 export default function DitheredLogo({ anchorRef }: Props) {
+  const params = useDialKit("Logo Dots", {
+    grid: {
+      gridStep: [4, 1, 12],
+      dotSize: [1, 0.5, 4],
+      bgAlpha: [0.15, 0, 0.5],
+      cornerAlpha: [0.27, 0, 1],
+      dimSquareAlpha: [0.29, 0, 1],
+    },
+    glow: {
+      bloomBlur: [20, 0, 20],
+      bloomAlpha: [1, 0, 1],
+      flickerSpeed: [1, 0, 30],
+      flickerAmount: [0.35, 0, 1],
+      boostAmount: [0.4, 0, 2],
+      boostAmountBg: [0.4, 0, 2],
+      boostDecay: [0.01, 0, 0.2],
+    },
+    interaction: {
+      repulseRadius: [45, 5, 200],
+      maxDispBase: [15, 0, 100],
+      maxDispFast: [80, 0, 200],
+      lerpBase: [0.26, 0.01, 0.5],
+      lerpFast: [0.1, 0.001, 0.3],
+      velocityScale: [0.21, 0.001, 0.3],
+    },
+  });
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
   const dotsRef = useRef<{
@@ -109,19 +110,20 @@ export default function DitheredLogo({ anchorRef }: Props) {
     const dots = dotsRef.current;
     if (!canvas || !ctx || !dots) return;
 
+    const p = paramsRef.current;
     const dpr = Math.min(devicePixelRatio, 2);
-    const radius = REPULSE_RADIUS * dpr;
+    const radius = p.interaction.repulseRadius * dpr;
     const radiusSq = radius * radius;
-    const dotSize = DOT_SIZE * dpr;
+    const dotSize = p.grid.dotSize * dpr;
     const mouseX = pointerRef.current.x;
     const mouseY = pointerRef.current.y;
     const t_sec = time / 1000;
 
     // Velocity influence (0 = stationary, 1 = fast)
     const speed = pointerRef.current.speed;
-    const velInfluence = Math.min(1, speed * VELOCITY_SCALE);
-    const maxDisp = (MAX_DISPLACEMENT_BASE + (MAX_DISPLACEMENT_FAST - MAX_DISPLACEMENT_BASE) * velInfluence) * dpr;
-    const currentLerp = LERP_FACTOR_BASE + (LERP_FACTOR_FAST - LERP_FACTOR_BASE) * velInfluence;
+    const velInfluence = Math.min(1, speed * p.interaction.velocityScale);
+    const maxDisp = (p.interaction.maxDispBase + (p.interaction.maxDispFast - p.interaction.maxDispBase) * velInfluence) * dpr;
+    const currentLerp = p.interaction.lerpBase + (p.interaction.lerpFast - p.interaction.lerpBase) * velInfluence;
     // Decay speed
     pointerRef.current.speed *= 0.85;
 
@@ -149,11 +151,11 @@ export default function DitheredLogo({ anchorRef }: Props) {
         targetX = dots.originX[i];
         targetY = dots.originY[i];
         // Decay boost
-        dots.boost[i] = Math.max(0, dots.boost[i] - BOOST_DECAY);
+        dots.boost[i] = Math.max(0, dots.boost[i] - p.glow.boostDecay);
       }
 
       // Use per-dot lerp speed (defaults to base if never displaced)
-      const lerp = dots.lerpSpeed[i] || LERP_FACTOR_BASE;
+      const lerp = dots.lerpSpeed[i] || p.interaction.lerpBase;
       dots.currentX[i] += (targetX - dots.currentX[i]) * lerp;
       dots.currentY[i] += (targetY - dots.currentY[i]) * lerp;
     }
@@ -169,24 +171,24 @@ export default function DitheredLogo({ anchorRef }: Props) {
       bloomCtx.clearRect(0, 0, bloomCanvas.width, bloomCanvas.height);
       bloomCtx.fillStyle = `rgb(${GOLD_R}, ${GOLD_G}, ${GOLD_B})`;
       for (let i = 0; i < dots.count; i++) {
-        if (dots.alpha[i] > BG_ALPHA) {
+        if (dots.alpha[i] > p.grid.bgAlpha) {
           bloomCtx.globalAlpha = dots.alpha[i];
           bloomCtx.fillRect(dots.currentX[i], dots.currentY[i], dotSize, dotSize);
         }
       }
       // Draw the bloom layer blurred and faint onto the main canvas
       ctx.save();
-      ctx.filter = `blur(${BLOOM_BLUR * dpr}px)`;
-      ctx.globalAlpha = BLOOM_ALPHA;
+      ctx.filter = `blur(${p.glow.bloomBlur * dpr}px)`;
+      ctx.globalAlpha = p.glow.bloomAlpha;
       ctx.drawImage(bloomCanvas, 0, 0);
       ctx.restore();
     }
 
     // Pass 2: all dots, crisp
     for (let i = 0; i < dots.count; i++) {
-      const boost = dots.boost[i] * BOOST_AMOUNT;
-      if (dots.alpha[i] <= BG_ALPHA) {
-        const bgBoost = dots.boost[i] * BOOST_AMOUNT_BG;
+      const boost = dots.boost[i] * p.glow.boostAmount;
+      if (dots.alpha[i] <= p.grid.bgAlpha) {
+        const bgBoost = dots.boost[i] * p.glow.boostAmountBg;
         ctx.globalAlpha = Math.min(1, dots.alpha[i] + bgBoost);
       } else {
         // Flickering pixels — only a few dots across the logo blink
@@ -195,8 +197,8 @@ export default function DitheredLogo({ anchorRef }: Props) {
         let flickerMul = 1.0;
         if (isFlickerer) {
           const dotPhase = dotSeed * 1000;
-          const blinkCycle = ((t_sec + dotPhase) % 6.0); // 6s cycle
-          if (blinkCycle < 0.12) flickerMul = 0.3;
+          const blinkCycle = ((t_sec * p.glow.flickerSpeed + dotPhase) % 6.0); // 6s cycle
+          if (blinkCycle < 0.12) flickerMul = 1.0 - p.glow.flickerAmount;
         }
         ctx.globalAlpha = Math.min(1, Math.max(0.1, dots.alpha[i] * flickerMul + boost));
       }
@@ -221,8 +223,9 @@ export default function DitheredLogo({ anchorRef }: Props) {
     const anchor = anchorRef.current;
     if (!anchor) return;
 
+    const p = paramsRef.current;
     const dpr = Math.min(devicePixelRatio, 2);
-    const step = GRID_CSS_STEP * dpr;
+    const step = p.grid.gridStep * dpr;
 
     // Logo pixel size derived from grid cells
     const logoPixelSize = LOGO_GRID_SIZE * step;
@@ -256,7 +259,7 @@ export default function DitheredLogo({ anchorRef }: Props) {
         const px = col * step + step / 2;
         const py = row * step + step / 2;
 
-        let dotAlpha = BG_ALPHA;
+        let dotAlpha = p.grid.bgAlpha;
 
         // Check if this grid point is inside the logo area
         const cellX = Math.round((px - snappedLogoX - step / 2) / step);
@@ -277,9 +280,9 @@ export default function DitheredLogo({ anchorRef }: Props) {
 
               if (localCol >= 0 && localCol < SQ_CELLS && localRow >= 0 && localRow < SQ_CELLS) {
                 if (fill === "dim") {
-                  dotAlpha = isCorner(localRow, localCol) ? DIM_SQUARE_ALPHA * CORNER_ALPHA : DIM_SQUARE_ALPHA;
+                  dotAlpha = isCorner(localRow, localCol) ? p.grid.dimSquareAlpha * p.grid.cornerAlpha : p.grid.dimSquareAlpha;
                 } else {
-                  dotAlpha = isCorner(localRow, localCol) ? CORNER_ALPHA : 1.0;
+                  dotAlpha = isCorner(localRow, localCol) ? p.grid.cornerAlpha : 1.0;
                 }
               }
             }
@@ -305,7 +308,7 @@ export default function DitheredLogo({ anchorRef }: Props) {
     if (!canvas || !ctx || !dots) return;
 
     const dpr = Math.min(devicePixelRatio, 2);
-    const dotSize = DOT_SIZE * dpr;
+    const dotSize = paramsRef.current.grid.dotSize * dpr;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = `rgb(${GOLD_R}, ${GOLD_G}, ${GOLD_B})`;
     for (let i = 0; i < dots.count; i++) {
@@ -371,6 +374,14 @@ export default function DitheredLogo({ anchorRef }: Props) {
       bloomCtxRef.current = null;
     };
   }, [anchorRef, handlePointerMove, handlePointerLeave]);
+
+  // Rebuild dots when grid params change (these are baked into the dot array)
+  const { gridStep, bgAlpha, cornerAlpha, dimSquareAlpha } = params.grid;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !ctxRef.current) return;
+    buildDots(canvas.width, canvas.height);
+  }, [gridStep, bgAlpha, cornerAlpha, dimSquareAlpha]);
 
   return (
     <canvas

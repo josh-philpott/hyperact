@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useDialKit } from "dialkit";
 import {
   particleVertexShader,
   particleFragmentShader,
@@ -6,14 +7,26 @@ import {
 } from "../shaders/suminagashi.ts";
 
 const PARTICLE_COUNT = 12000;
-const POINT_SIZE = 2.0;
-const DAMPING = 0.96;       // velocity damping
-const MOUSE_RADIUS = 25;    // repulsion radius in px
-const MOUSE_FORCE = 5;      // repulsion strength
-const WAVE_SPEED = 400;     // click wave expansion px/s
-const WAVE_FORCE = 12;      // click wave push strength
-const WAVE_WIDTH = 60;      // wave ring thickness in px
+
 export default function SuminagashiBackground() {
+  const params = useDialKit("Water Particles", {
+    particles: {
+      pointSize: [2.0, 0.5, 6],
+      damping: [0.96, 0.8, 1.0],
+    },
+    mouse: {
+      radius: [25, 5, 100],
+      force: [5, 0, 20],
+    },
+    waves: {
+      speed: [400, 50, 1000],
+      force: [12, 0, 50],
+      width: [60, 10, 200],
+    },
+  });
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -154,11 +167,12 @@ export default function SuminagashiBackground() {
         mouseVY = 0;
       }
 
-      const mouseRad = MOUSE_RADIUS * dpr;
+      const p = paramsRef.current;
+      const mouseRad = p.mouse.radius * dpr;
 
       // Update waves
       for (let w = waves.length - 1; w >= 0; w--) {
-        waves[w].radius += WAVE_SPEED * dpr * dt;
+        waves[w].radius += p.waves.speed * dpr * dt;
         if (waves[w].radius > Math.max(canvas.width, canvas.height) * 1.5) {
           waves.splice(w, 1);
         }
@@ -193,7 +207,7 @@ export default function SuminagashiBackground() {
 
             // Close repulsion — only when moving
             if (dist < mouseRad) {
-              const pushForce = (1.0 - dist / mouseRad) * MOUSE_FORCE * Math.min(mouseSpeed * 0.3, 1.0);
+              const pushForce = (1.0 - dist / mouseRad) * p.mouse.force * Math.min(mouseSpeed * 0.3, 1.0);
               velX[i] += (dx / dist) * pushForce;
               velY[i] += (dy / dist) * pushForce;
             }
@@ -234,9 +248,9 @@ export default function SuminagashiBackground() {
           const wdy = posY[i] - wave.y;
           const wDist = Math.sqrt(wdx * wdx + wdy * wdy);
           const ringDist = Math.abs(wDist - wave.radius);
-          const waveW = WAVE_WIDTH * dpr;
+          const waveW = p.waves.width * dpr;
           if (ringDist < waveW && wDist > 1) {
-            const strength = (1.0 - ringDist / waveW) * WAVE_FORCE;
+            const strength = (1.0 - ringDist / waveW) * p.waves.force;
             const maxR = Math.max(canvas.width, canvas.height) * 0.8;
             const ageFade = Math.max(0, 1.0 - wave.radius / maxR);
             velX[i] += (wdx / wDist) * strength * ageFade;
@@ -245,8 +259,8 @@ export default function SuminagashiBackground() {
         }
 
         // Integrate
-        velX[i] *= DAMPING;
-        velY[i] *= DAMPING;
+        velX[i] *= p.particles.damping;
+        velY[i] *= p.particles.damping;
         posX[i] += velX[i];
         posY[i] += velY[i];
 
@@ -260,7 +274,7 @@ export default function SuminagashiBackground() {
 
       gl.useProgram(program);
       gl.uniform2f(uResolution, canvas.width, canvas.height);
-      gl.uniform1f(uPointSize, POINT_SIZE * dpr);
+      gl.uniform1f(uPointSize, p.particles.pointSize * dpr);
       gl.uniform3f(uColor, 80 / 255, 72 / 255, 58 / 255);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);

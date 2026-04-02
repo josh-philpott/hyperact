@@ -1,5 +1,7 @@
 import { useState, useRef } from "react";
 import { Agentation } from "agentation";
+import { DialRoot } from "dialkit";
+import "dialkit/styles.css";
 import DitheredLogo from "./components/DitheredLogo";
 
 export default function App() {
@@ -104,6 +106,7 @@ export default function App() {
       </div>
     </main>
     {process.env.NODE_ENV === "development" && <Agentation />}
+    {process.env.NODE_ENV === "development" && <DialRoot position="top-right" />}
     </>
   );
 }
